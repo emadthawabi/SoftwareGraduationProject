@@ -1,3 +1,6 @@
 .env
 .venv/
 __pycache__/
+
+# Source data (not in the repo; see README "Data")
+data/
