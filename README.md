@@ -89,7 +89,15 @@ Notes:
 
 `sudo docker compose down -v` **deletes the database volume and all data**.
 
-## Changing the schema
+## Chunk preparation
+
+See [docs/CHUNKING.md](docs/CHUNKING.md) for rules, warnings and database commands.
+Preview: `python -m legal_rag.chunk --domain labour --preview`.
+After migrations: `python -m legal_rag.chunk --domain labour --write`.
+Corpus reloads remove derived chunks; run the chunk command again afterward.
+Embeddings and token-limit checks are a later stage.
+
+## Changing the schema (migrations)
 
 Never edit a migration that has already been applied. Add a new file with the next number (e.g. `004_....sql`) and run `python -m legal_rag.migrate`.
 

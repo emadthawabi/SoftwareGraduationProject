@@ -1,6 +1,6 @@
 # Progress
 
-Last updated: 2026-11-13
+Last updated: 2026-11-16
 
 ## Stages
 
@@ -8,7 +8,7 @@ Last updated: 2026-11-13
 |---|---|---|
 | 1 | Gold question set (questions with known correct المواد) | ⏳ Not started |
 | 2 | Database schema + loading the data | ✅ Done |
-| 3 | Arabic normalization + chunking | ⬜ Next |
+| 3 | Arabic normalization + chunking | Chunking implemented; normalization pending |
 | 4 | Indexes: Postgres full-text (Arabic) + pgvector embeddings | ⬜ |
 | 5 | Retrieval: direct lookup → query rewriting → hybrid search (RRF) → rerank → link expansion | ⬜ |
 | 6 | Answer generation with citations | ⬜ |
@@ -16,6 +16,18 @@ Last updated: 2026-11-13
 | — | Phase 2: retrieval from real case descriptions | ⬜ |
 
 ## Done
+
+### Chunk preparation (2026-11-16)
+
+- Added `legal_rag/chunk.py`, migration `004_chunks.sql`, and source-preservation tests.
+- Preview reads the local corpus; write mode derives chunks from PostgreSQL.
+- Short articles stay whole; long articles use source paragraph boundaries and
+  repeated introductory context. Attachments remain whole with review warnings.
+- Original text and corpus files are unchanged. Embeddings are not generated.
+- See `docs/CHUNKING.md` for commands, reload behavior and limitations.
+- Migration and live database write have not been applied by the coding agent.
+- Local preview: 444 source units, 405 eligible units, 423 chunks; 4 oversized
+  passages and 3 attachments marked for structure review. All 8 tests passed.
 
 ### Stage 2: database (2026-11-13)
 
