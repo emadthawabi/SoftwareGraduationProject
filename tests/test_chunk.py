@@ -90,11 +90,26 @@ class ChunkTests(unittest.TestCase):
                 prefix, spans, labels, warning = segments(unit)
                 self.assertIsNone(warning)
                 self.assertEqual(prefix + "".join(spans), unit["text"])
-                self.assertEqual([label for c in own for label in c["paragraph_labels"]], labels)
+                self.assertEqual(set(label for c in own for label in c["paragraph_labels"]), set(labels))
                 reconstructed = prefix + "".join(c["content"][len(prefix):] for c in own)
                 self.assertEqual(reconstructed, unit["text"])
         self.assertEqual(pairs, before)
         self.assertEqual(chunks, prepare(pairs, "labour", 1500))
+
+    def test_long_paragraph_continuations_preserve_text(self):
+        self.unit["text"] = "Intro: 1- " + "Sentence. " * 20 + "2- Beta."
+        self.unit["paragraphs"][0]["text"] = "Sentence. " * 20
+        chunks = build_chunks(self.unit, self.leg, "labour", 50)
+        self.assertTrue(any(c["requires_parent_context"] for c in chunks))
+        prefix = "Intro: "
+        self.assertEqual(prefix + "".join(c["content"][len(prefix):] for c in chunks), self.unit["text"])
+        self.assertTrue(all(len(c["content"]) <= 50 for c in chunks))
+
+    def test_flattened_attachment_is_not_embedding_ready(self):
+        self.unit["kind"] = "attachment"
+        chunk, = build_chunks(self.unit, self.leg, "labour")
+        self.assertFalse(chunk["embedding_ready"])
+        self.assertEqual(chunk["content"], self.unit["text"])
 
 
 if __name__ == "__main__":

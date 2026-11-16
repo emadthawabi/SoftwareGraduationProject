@@ -7,7 +7,9 @@ import re
 from collections import Counter
 from pathlib import Path
 
-VERSION = "legal-boundaries-v1"
+from legal_rag.normalize import normalize_search_text
+
+VERSION = "legal-boundaries-v2"
 TRUSTED = {"verified_html", "verified_page_text", "pdf_transcribed_checked", "human_reviewed"}
 
 
@@ -72,6 +74,26 @@ def segments(unit):
     return prefix, spans, labels, None
 
 
+def split_long_span(text, limit):
+    """Split at existing sentence/list boundaries only; retain every character.
+
+    This is a continuation of one legal paragraph, not independent evidence.
+    If no safe punctuation exists, retain the oversized span for review.
+    """
+    boundaries = [0] + [match.end() for match in re.finditer(
+        r"(?:[.!؟؛;](?=\s)|\n)\s+", text)] + [len(text)]
+    pieces, current = [], ""
+    for start, end in zip(boundaries, boundaries[1:]):
+        sentence = text[start:end]
+        if current and len(current + sentence) > limit:
+            pieces.append(current)
+            current = ""
+        current += sentence
+    if current:
+        pieces.append(current)
+    return pieces
+
+
 def build_chunks(unit, legislation, domain, max_chars=1500):
     if max_chars <= 0:
         raise ValueError("max_chars must be positive")
@@ -83,7 +105,7 @@ def build_chunks(unit, legislation, domain, max_chars=1500):
     warnings = list(unit.get("flags") or [])
     if legislation.get("content_issue"):
         warnings.append("source_content_issue")
-    groups = [(text, [], unit["kind"])]
+    groups = [(text, [], unit["kind"], False)]
     if unit["kind"] == "attachment":
         warnings.append("attachment_structure_review")
     elif len(text) > max_chars:
@@ -93,16 +115,27 @@ def build_chunks(unit, legislation, domain, max_chars=1500):
         else:
             groups, current, current_labels = [], "", []
             for span, label in zip(spans, labels):
+                if len(prefix + span) > max_chars:
+                    if current:
+                        groups.append((prefix + current, current_labels, "paragraph_group", False))
+                        current, current_labels = "", []
+                    paragraph = (unit.get("paragraphs") or [])[labels.index(label)]
+                    # Explicit nested structure wins over the size heuristic.
+                    pieces = ([span] if paragraph.get("items") else
+                              split_long_span(span, max(1, max_chars - len(prefix))))
+                    groups.extend((prefix + piece, [label], "paragraph_group", len(pieces) > 1)
+                                  for piece in pieces)
+                    continue
                 if current and len(prefix + current + span) > max_chars:
-                    groups.append((prefix + current, current_labels, "paragraph_group"))
+                    groups.append((prefix + current, current_labels, "paragraph_group", False))
                     current, current_labels = "", []
                 current += span
                 current_labels.append(label)
             if current:
-                groups.append((prefix + current, current_labels, "paragraph_group"))
+                groups.append((prefix + current, current_labels, "paragraph_group", False))
     context = header(unit, legislation, domain)
     result = []
-    for index, (content, labels, kind) in enumerate(groups):
+    for index, (content, labels, kind, continuation) in enumerate(groups):
         embedding_input = context + "\n\n" + content
         result.append({
             "chunk_id": f"{unit['unit_id']}:chunk:{index}",
@@ -113,6 +146,9 @@ def build_chunks(unit, legislation, domain, max_chars=1500):
             "content": content,
             "context_header": context,
             "embedding_input": embedding_input,
+            "search_text": normalize_search_text(embedding_input),
+            "requires_parent_context": continuation,
+            "embedding_ready": unit["kind"] != "attachment" and len(content) <= max_chars,
             "input_hash": hashlib.sha256(embedding_input.encode("utf-8")).hexdigest(),
             "chunker_version": f"{VERSION}:max_chars={max_chars}",
             "warnings": sorted(
@@ -187,6 +223,8 @@ def main():
         chunks = prepare(pairs, args.domain, args.max_chars)
     print(f"Mode: {'written to database' if args.write else 'preview (no database writes)'}")
     print(f"Source units: {len(pairs)}; eligible units: {len({c['unit_id'] for c in chunks})}; chunks: {len(chunks)}")
+    print(f"Embedding-ready (token check still required): {sum(c['embedding_ready'] for c in chunks)}")
+    print("Review before embedding:", [c["chunk_id"] for c in chunks if not c["embedding_ready"]])
     print("Warnings:", dict(Counter(w for c in chunks for w in c["warnings"])))
     for chunk in chunks[:args.samples]:
         print(json.dumps(chunk, ensure_ascii=True, indent=2))

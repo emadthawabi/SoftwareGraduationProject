@@ -8,7 +8,7 @@ Last updated: 2026-11-16
 |---|---|---|
 | 1 | Gold question set (questions with known correct المواد) | ⏳ Not started |
 | 2 | Database schema + loading the data | ✅ Done |
-| 3 | Arabic normalization + chunking | Chunking implemented; normalization pending |
+| 3 | Arabic normalization + chunking | Implemented; 3 flattened attachments require source review |
 | 4 | Indexes: Postgres full-text (Arabic) + pgvector embeddings | ⬜ |
 | 5 | Retrieval: direct lookup → query rewriting → hybrid search (RRF) → rerank → link expansion | ⬜ |
 | 6 | Answer generation with citations | ⬜ |
@@ -16,6 +16,19 @@ Last updated: 2026-11-16
 | — | Phase 2: retrieval from real case descriptions | ⬜ |
 
 ## Done
+
+### Chunk refinement and keyword text (2026-11-16)
+
+- v2 splits oversized unstructured article paragraphs at existing sentence/list
+  boundaries; marks continuations as requiring parent context at retrieval time.
+- Added conservative Arabic normalization, separate search_text and migration 005
+  for a generated PostgreSQL simple-config search_vector plus GIN index.
+- Local preview: 430 chunks covering 405 units, 427 preparation-ready; 3 flattened
+  attachments remain held for source review, including 2 oversized attachments.
+- All 13 tests pass, including corpus preservation and normalization checks.
+- No live migrations, database writes, model API calls or embeddings executed.
+- Token counting and embedding generation remain pending. Keyword normalization
+  must also be applied to future search queries; no Arabic stemming is implied.
 
 ### Chunk preparation (2026-11-16)
 

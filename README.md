@@ -96,6 +96,10 @@ Preview: `python -m legal_rag.chunk --domain labour --preview`.
 After migrations: `python -m legal_rag.chunk --domain labour --write`.
 Corpus reloads remove derived chunks; run the chunk command again afterward.
 Embeddings and token-limit checks are a later stage.
+Migration `005_keyword_search.sql` adds separate normalized keyword text and a
+GIN full-text index. Regenerate chunks after applying it. Three flattened source
+attachments remain held for review (`embedding_ready=false`). Continuations of
+long paragraphs require parent context; see the chunking guide.
 
 ## Changing the schema (migrations)
 
