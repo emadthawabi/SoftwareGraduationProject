@@ -101,7 +101,55 @@ GIN full-text index. Regenerate chunks after applying it. Three flattened source
 attachments remain held for review (`embedding_ready=false`). Continuations of
 long paragraphs require parent context; see the chunking guide.
 
-## Changing the schema (migrations)
+## Keyword search
+
+After applying migrations and generating chunks:
+
+```powershell
+python -m legal_rag.search "ساعات العمل الإضافية"
+python -m legal_rag.search "الأجر" --limit 3
+python -m legal_rag.search "الأجر" --output search-results.json
+```
+
+This reads PostgreSQL only and uses no model API. It normalizes the query using
+the same function as chunk preparation, ranks keyword matches, and returns one
+best chunk per source unit with document metadata, source URL and full parent
+text. Attachments held for review are excluded. Scores are relevance ranks, not
+confidence probabilities. Common question words are removed; partial matches are
+ranked by the number of distinct terms matched, then PostgreSQL rank. Negation
+and numbers are retained, but partial matching does not enforce every constraint.
+There is no Arabic stemming, synonym expansion or answer generation yet.
+If Arabic letters appear disconnected or reversed in the terminal, use `--output`
+and open the UTF-8 JSON file in VS Code; source text is not reversed or reshaped.
+
+## Direct article lookup
+
+```powershell
+python -m legal_rag.search --document 1 --article 71 --output article-71.json
+```
+
+`--document` is the Maqam ID, NOT the official law number (the Labour Law is
+Maqam ID 1, official law number 7). Both flags are required, without a question.
+Returns the complete original article and source metadata directly from `units`.
+Absent, untrusted or excluded articles return no result. No migration is needed.
+`--domain` and `--output` work with lookup; `--limit` only affects keyword search.
+
+## Token validation (read-only)
+
+```powershell
+python -m pip install -r requirements.txt
+python -m legal_rag.validate_tokens --output token-report.json
+```
+
+Reads saved database chunks and counts exact embedding_input with the model's
+tokenizer (default text-embedding-3-small, cl100k_base, 8192 tokens). No database
+writes, embeddings, API key or paid model calls. First tokenizer use may download
+public vocabulary data; legal texts stay local. Existing review holds remain.
+For regenerated corpus preview instead of saved records, use `--source corpus`.
+The optional report contains counts and per-chunk IDs, not full legal passages.
+This does not approve source accuracy or remove the need for parent context.
+
+## Applying SQL migrations
 
 Never edit a migration that has already been applied. Add a new file with the next number (e.g. `004_....sql`) and run `python -m legal_rag.migrate`.
 

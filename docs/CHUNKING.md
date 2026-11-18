@@ -106,6 +106,22 @@ chunks does not require paying to embed unchanged input again.
 
 ## Checks
 
+### Token preflight
+
+`python -m legal_rag.validate_tokens --output token-report.json` checks saved chunks
+in a read-only PostgreSQL transaction. Use `--source corpus` to check regenerated
+local files instead. It counts the complete, unmodified embedding_input using
+tiktoken, treats special-looking strings as ordinary source text, and reports
+empty inputs, limit violations, fingerprint mismatches and existing review holds.
+Supports text-embedding-3-small/large (8192 input tokens); `--max-tokens` can impose
+a stricter limit only. First tokenizer use can download its public vocabulary.
+No API key or model request is involved; stored text and eligibility are unchanged.
+Exit code 1 means a non-held input failed preflight; review-held attachments remain
+held even if their size fits. Counts do not establish legal or retrieval accuracy.
+Corpus mode uses the default 1500-character chunker setting; custom saved chunks
+must be checked in database mode. Total candidate tokens are per-input totals,
+not an actual API usage or cost measurement.
+
 ```powershell
 python -m unittest discover -s tests -v
 ```

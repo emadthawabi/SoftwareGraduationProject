@@ -1,6 +1,6 @@
 # Progress
 
-Last updated: 2026-11-16
+Last updated: 2026-11-18
 
 ## Stages
 
@@ -16,6 +16,40 @@ Last updated: 2026-11-16
 | — | Phase 2: retrieval from real case descriptions | ⬜ |
 
 ## Done
+
+### Token preflight (2026-11-18)
+
+- Added read-only `legal_rag/validate_tokens.py` and tiktoken dependency.
+- Counts exact embedding_input including headings using the selected model's
+  tokenizer, checks input fingerprints and keeps preparation holds separate.
+- Corpus validation with text-embedding-3-small: 430 chunks, 427 can pass preflight,
+  3 held attachments, 0 oversized/empty inputs, 0 hash mismatches. Largest prepared
+  candidate: 1169 tokens; candidates total: 133139 tokens. No embeddings generated.
+- Tokenizer vocabulary downloaded once; legal text was processed locally.
+- Read-only database validation matched corpus results. All 30 tests passed.
+
+### Direct article lookup (2026-11-18)
+
+- `search.py` now accepts `--document <Maqam ID> --article <number>` instead of a
+  question. Parameterized lookup returns the full eligible article and sources
+  directly from units, independent of chunks and keyword ranking.
+- Missing, non-searchable, superseded or recorded-repealed articles are excluded.
+- Existing keyword mode and UTF-8 JSON output remain available; no migration.
+- All 24 tests passed. Live read-only checks confirmed 1/71 and 534/1 return
+  their exact units and 1/99999 returns no result.
+
+### Keyword retrieval (2026-11-18)
+
+- Added `legal_rag/search.py`: normalized, parameterized PostgreSQL keyword search,
+  deterministic ranking and one result per legal unit (default top five).
+- Results include the matched chunk, full parent article, citation metadata and
+  source warnings. Review-held attachments are excluded.
+- Uses existing migrations; no new database structure or model calls required.
+- Query terms now use partial OR matching after conservative question-word removal;
+  distinct term coverage ranks before frequency. Negation and numbers remain in
+  the query but OR retrieval does not enforce them as logical constraints.
+- All 16 tests passed. A read-only live database search for ساعات العمل الإضافية
+  returned maqam:1:art:71 as the top result. No database writes were performed.
 
 ### Chunk refinement and keyword text (2026-11-16)
 
