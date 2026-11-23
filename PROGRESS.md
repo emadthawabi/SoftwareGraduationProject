@@ -1,6 +1,6 @@
 # Progress
 
-Last updated: 2026-11-18
+Last updated: 2026-11-23
 
 ## Stages
 
@@ -16,6 +16,52 @@ Last updated: 2026-11-18
 | — | Phase 2: retrieval from real case descriptions | ⬜ |
 
 ## Done
+
+### Semantic query test (2026-11-23)
+
+- Added `legal_rag.semantic_search`: converts original questions with Gemini
+  RETRIEVAL_QUERY into normalized 1536-dimensional vectors and saves UTF-8 JSON.
+- Read-only cosine retrieval filters the complete document embedding profile and
+  returns distinct units with the best passage, full parent text and source URL.
+- Live Arabic weekly-hours query saved question-vector-test.json with its actual
+  1536 numbers and five passages. Database currently links 427 eligible chunks.
+- Similarity is a ranking score, not a probability or legal correctness guarantee.
+
+### Resumable Gemini embedding generation (2026-11-23)
+
+- Added `python -m legal_rag.embed`: preview by default; `--write` generates vectors.
+- Filters eligible chunks, verifies exact input hashes and fresh Gemini token counts,
+  reuses full-profile cached embeddings, normalizes 1536-dimensional outputs and
+  commits each validated batch separately. Bounded retries handle transient HTTP errors.
+- Live test: `--limit 5 --write` saved five vectors; verified dimensions, unit length
+  and five current chunk links. Repeating reused all five without API calls.
+- Three held attachments stay excluded. Full-corpus embedding has not been run.
+- Added six offline safety tests; usage is in docs/EMBEDDING_STORAGE.md.
+
+### Embedding storage (2026-11-23)
+
+- Added migration 006: embedding_cache holds 1536-dimensional L2-normalized vectors
+  keyed by exact input hash plus provider/model/task/configuration identity.
+- chunk_embeddings view attaches current eligible chunks to matching cached vectors.
+  Cache entries survive source reloads; stale hashes do not match changed chunks.
+- No generation script, embedding API requests or production migration execution
+  are included in this step. See docs/EMBEDDING_STORAGE.md for application commands.
+- PostgreSQL integration test passed in an isolated rolled-back schema: dimensions,
+  normalization, uniqueness, stale hashes, review gates and rebuild reuse checked.
+
+### Gemini token validation (2026-11-23)
+
+- Added gemini-embedding-001 support using the provider's actual countTokens API,
+  never an OpenAI tokenizer estimate. Added google-genai to requirements and
+  non-secret Gemini settings to .env.example.
+- Reads EMBEDDING_MODEL from .env or accepts explicit --model. Uses 2040 safe input
+  tokens under the 2048 maximum, reserving 8 for framing/internal overhead.
+- Holds and input-hash checks remain; identical text reuses counts within a run.
+- All 33 tests passed, including mocked Gemini request shape and safe boundaries.
+- Full live validation uses read-only database access; no embeddings are generated.
+- Live Gemini validation: 430 chunks checked, 427 pass, 3 held. Largest candidate
+  621 tokens, candidate total 68975. One held attachment (maqam:535:att:1) is 3221
+  tokens and exceeds the safe limit. Saved token-report-gemini.json separately.
 
 ### Token preflight (2026-11-18)
 

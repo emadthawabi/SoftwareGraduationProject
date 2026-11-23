@@ -108,19 +108,29 @@ chunks does not require paying to embed unchanged input again.
 
 ### Token preflight
 
-`python -m legal_rag.validate_tokens --output token-report.json` checks saved chunks
+`python -m legal_rag.validate_tokens --model gemini-embedding-001 --output token-report-gemini.json` checks saved chunks
 in a read-only PostgreSQL transaction. Use `--source corpus` to check regenerated
-local files instead. It counts the complete, unmodified embedding_input using
-tiktoken, treats special-looking strings as ordinary source text, and reports
+local files instead. It counts the complete, unmodified embedding_input and reports
 empty inputs, limit violations, fingerprint mismatches and existing review holds.
-Supports text-embedding-3-small/large (8192 input tokens); `--max-tokens` can impose
-a stricter limit only. First tokenizer use can download its public vocabulary.
-No API key or model request is involved; stored text and eligibility are unchanged.
+For Gemini it uses Google's countTokens endpoint with explicit user-role content.
+Requires GEMINI_API_KEY; complete passages are sent to Google for counting only.
+The reported method is gemini-countTokens:user:v1. The model maximum is 2048;
+the conservative effective maximum is 2040, leaving 8 tokens for framing/internal
+overhead. See Google's clarification:
+https://discuss.ai.google.dev/t/190649
+No truncation, embeddings, source changes or database writes occur. Identical
+inputs reuse a count within a run. Progress prints every 25 chunks. Quota/network
+errors stop validation instead of silently substituting an OpenAI token count.
+Supports text-embedding-3-small/large via local tiktoken (8192 input tokens).
+--max-tokens can impose a stricter limit, not remove the Gemini safety reserve.
+The CLI reads the default from EMBEDDING_MODEL in .env, falling back to Gemini;
+explicit --model overrides it. First OpenAI tokenizer use can download vocabulary.
 Exit code 1 means a non-held input failed preflight; review-held attachments remain
 held even if their size fits. Counts do not establish legal or retrieval accuracy.
 Corpus mode uses the default 1500-character chunker setting; custom saved chunks
 must be checked in database mode. Total candidate tokens are per-input totals,
-not an actual API usage or cost measurement.
+not an actual embedding API usage or cost measurement. Keep separate reports for
+different models: the old OpenAI report does not establish Gemini compatibility.
 
 ```powershell
 python -m unittest discover -s tests -v

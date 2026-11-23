@@ -138,18 +138,29 @@ Absent, untrusted or excluded articles return no result. No migration is needed.
 
 ```powershell
 python -m pip install -r requirements.txt
-python -m legal_rag.validate_tokens --output token-report.json
+python -m legal_rag.validate_tokens --model gemini-embedding-001 --output token-report-gemini.json
 ```
 
-Reads saved database chunks and counts exact embedding_input with the model's
-tokenizer (default text-embedding-3-small, cl100k_base, 8192 tokens). No database
-writes, embeddings, API key or paid model calls. First tokenizer use may download
-public vocabulary data; legal texts stay local. Existing review holds remain.
+Reads saved database chunks and counts exact embedding_input. The default model
+comes from EMBEDDING_MODEL in .env, otherwise gemini-embedding-001. Gemini requires
+GEMINI_API_KEY and sends inputs to Google's countTokens endpoint (no embeddings
+generated). It uses a conservative 2040-token threshold under the 2048-token model
+limit, reserving space for framing/model overhead. Existing review holds remain.
+OpenAI models are still supported via explicit --model and local tiktoken counting.
 For regenerated corpus preview instead of saved records, use `--source corpus`.
 The optional report contains counts and per-chunk IDs, not full legal passages.
 This does not approve source accuracy or remove the need for parent context.
+The database is never modified. Gemini counting requires network access and can
+fail if quota/authentication fails; it never substitutes another model's counts.
 
 ## Applying SQL migrations
+
+Migration `006_embedding_storage.sql` adds `embedding_cache` for 1536-dimensional
+L2-normalized vectors and `chunk_embeddings`, a view linking eligible current
+chunks to matching cache entries. Run `python -m legal_rag.migrate` to apply it.
+The cache survives corpus/chunk rebuilds. It separates provider, model, dimensions,
+task, normalization, request version and exact input hash. It is empty until an
+embedding generator is implemented. See [docs/EMBEDDING_STORAGE.md](docs/EMBEDDING_STORAGE.md).
 
 Never edit a migration that has already been applied. Add a new file with the next number (e.g. `004_....sql`) and run `python -m legal_rag.migrate`.
 
