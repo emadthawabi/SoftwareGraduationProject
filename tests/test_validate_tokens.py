@@ -1,8 +1,10 @@
 import copy
 import hashlib
 import unittest
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
-from legal_rag.validate_tokens import validate_chunks
+from legal_rag.validate_tokens import GeminiCounter, validate_chunks
 
 
 class CharacterEncoder:
@@ -24,6 +26,39 @@ def chunk(text, ready=True):
 
 
 class TokenTests(unittest.TestCase):
+    def test_gemini_counter_uses_exact_text_and_caches_repeated_input(self):
+        client = MagicMock()
+        client.models.count_tokens.return_value = SimpleNamespace(total_tokens=10)
+        counter = GeminiCounter(client, "gemini-embedding-001")
+        text = "المادة 71\n\nنص المادة"
+        self.assertEqual(counter.count(text), 10)
+        self.assertEqual(counter.count(text), 10)
+        client.models.count_tokens.assert_called_once()
+        request = client.models.count_tokens.call_args.kwargs
+        self.assertEqual(request["model"], "gemini-embedding-001")
+        self.assertEqual(request["contents"].role, "user")
+        self.assertEqual(request["contents"].parts[0].text, text)
+
+    def test_gemini_safety_limit_and_review_hold(self):
+        counter = MagicMock(name="counter")
+        counter.name = "gemini-test"
+        counter.count.side_effect = [2040, 2041, 10]
+        result = validate_chunks([chunk("a"), chunk("b"), chunk("c", False)],
+                                 model="gemini-embedding-001", token_counter=counter)
+        self.assertEqual(result["token_limit"], 2040)
+        self.assertEqual(result["model_token_limit"], 2048)
+        self.assertEqual(result["safety_reserve_tokens"], 8)
+        self.assertEqual(result["can_embed"], 1)
+        self.assertEqual(result["too_long"], 1)
+        self.assertEqual(result["held_for_review"], 1)
+
+    def test_gemini_rejects_wrong_tokenizer_and_unsafe_limit(self):
+        with self.assertRaises(ValueError):
+            validate_chunks([], model="gemini-embedding-001", encoding=CharacterEncoder())
+        with self.assertRaises(ValueError):
+            validate_chunks([], model="gemini-embedding-001", max_tokens=2048,
+                            token_counter=MagicMock())
+
     def test_real_model_tokenizer_handles_arabic_and_special_looking_text(self):
         import tiktoken
 
