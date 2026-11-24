@@ -1,6 +1,6 @@
 # Progress
 
-Last updated: 2026-11-23
+Last updated: 2026-11-24
 
 ## Stages
 
@@ -16,6 +16,69 @@ Last updated: 2026-11-23
 | — | Phase 2: retrieval from real case descriptions | ⬜ |
 
 ## Done
+
+### Ambiguous employment and retirement questions (2026-11-24)
+
+- Updated prompt to arabic-evidence-v3: do not equate profit sharing with commission
+  employment or assume employee/partner status. Ask for the arrangement and apply
+  category-specific rules conditionally while applicability is unknown.
+- Distinguish end-of-service compensation from pension rights; explicitly identify
+  evidence gaps and ask what the user means by retirement. No embedding/DB changes.
+
+### Temporary answer-generation failures (2026-11-24)
+
+- Added at most three generation retries for HTTP 500/502/503/504 with exponential
+  delays and jitter. The same model request and retrieved sources are reused;
+  question embedding and retrieval do not repeat. Other errors fail immediately.
+- SDK retries remain disabled to avoid multiplying attempts. Exhaustion preserves
+  the existing error behavior and does not fabricate an answer.
+
+### Answer wording and missing-fact handling (2026-11-24)
+
+- Updated the generation instructions to correct false assumptions directly, preserve
+  unknown eligibility conditions, request specific missing personal facts, show
+  calculations and distinguish missing source evidence from missing user details.
+- Added prompt_version=arabic-evidence-v2 to outputs for comparison with older runs.
+- No schema migration or document re-embedding is required. Prompt instructions do
+  not guarantee factual correctness; citation checks still only verify membership.
+- Six existing answer tests passed. Live comparison saved a clearer direct correction
+  in answer-false-assumption-improved.json. Missing-fact generation hit provider 503;
+  colloquial output still omitted clarification, prompting a more explicit example.
+
+### Gemini answer-generation switch (2026-11-24)
+
+- Replaced Groq with the installed Google GenAI SDK. Both question embedding and
+  answer generation use GEMINI_API_KEY; GROQ_API_KEY is no longer read.
+- Answers default to gemini-3.5-flash-lite, configurable through ANSWER_MODEL.
+  Existing embeddings, hybrid retrieval and local citation checks are unchanged.
+- Added JSON-schema response configuration and incomplete/blocked response checks;
+  updated answer tests and setup documentation.
+- Verification: 53 tests passed, one optional integration test skipped. Live
+  end-to-end maternity query succeeded and saved answer-maternity.json using Gemini.
+
+### Arabic answer generation (2026-11-24)
+
+- Added `legal_rag.answer`: hybrid retrieval followed by Groq-hosted
+  openai/gpt-oss-120b with strict JSON output and Arabic evidence-only instructions.
+- Cited claims carry verified source IDs; source links come from retrieval metadata.
+  Empty context abstains locally; partial and insufficient responses are supported.
+- Checks citation membership, response structure and completion status. These checks
+  do not establish factual entailment; out-of-domain behavior needs live evaluation.
+- Added GROQ_API_KEY placeholder to .env.example and docs/ANSWER_GENERATION.md.
+- Live generation is pending: GROQ_API_KEY is not configured in the local environment.
+
+### Hybrid retrieval (2026-11-24)
+
+- Added `legal_rag.hybrid_search`, combining existing keyword and semantic
+  retrieval using equal-weight RRF: sum(1 / (60 + rank)). Default: 20 candidates
+  per method, five final distinct source units, deterministic ties by unit_id.
+- Keeps each method's rank, original score and matched excerpt, plus full parent
+  text and source URL. Raw keyword/similarity scores are not mixed together.
+- Each request embeds the question once. Existing document embeddings are reused;
+  database schema and stored data do not change. No answering model is called.
+- Verification: 47 tests passed, one optional integration test skipped. Live
+  hybrid check could not finish because PostgreSQL connection timed out.
+- Run: `python -m legal_rag.hybrid_search "ما حقوق العاملة عند الولادة؟" --output hybrid-results.json`
 
 ### Semantic query test (2026-11-23)
 
