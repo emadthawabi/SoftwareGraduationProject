@@ -148,7 +148,7 @@ def main():
         raise SystemExit(str(exc)) from None
     except KeyboardInterrupt:
         raise SystemExit("Interrupted. Committed batches are safe; rerun the same command to resume.") from None
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         raise SystemExit(f"Embedding failed ({type(exc).__name__}, code={getattr(exc, 'code', None)}). "
                          "Check migration 006, database access, API key and quota. "
                          "Committed batches are safe; rerun to resume.") from None
