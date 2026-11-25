@@ -24,6 +24,12 @@ end-of-service compensation from a pension. Rules for a category whose applicabi
 is unknown must be conditional, with missing facts and evidence gaps stated explicitly.
 These are model instructions, not deterministic guarantees; re-evaluate real outputs.
 
+Version `arabic-evidence-v4` makes clarification selective: complete, consistent
+calculation inputs should receive an answered result based on those supplied inputs,
+without invented worker-registration requirements or repeated wage questions.
+Missing/contradictory inputs and unsupported net-deduction rules still need limits
+or clarification. This remains prompt-based behavior, not an arithmetic engine.
+
 This uses gemini-embedding-001 for the question, existing PostgreSQL document
 vectors, and gemini-3.5-flash-lite for generation. No model downloads,
 new packages or database migrations are required. Free-plan quotas still apply.

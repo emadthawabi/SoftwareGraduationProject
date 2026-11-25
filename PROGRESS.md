@@ -1,6 +1,25 @@
 # Progress
 
-Last updated: 2026-11-24
+Last updated: 2026-11-25
+
+## Current state (read before historical entries)
+
+- Implemented: corpus loading, Arabic normalized keyword text, chunk preparation,
+  token validation, cached Gemini embeddings, semantic + keyword RRF retrieval,
+  Gemini Arabic answers with citations, clarification prompts and bounded retries.
+- Labour snapshot last verified: 427 eligible chunks linked to vectors; three
+  attachments remain held. Future legal fields STILL require their own ingestion,
+  chunking, token validation, embeddings and evaluation. See docs/NEW_DOMAINS.md.
+- Models: gemini-embedding-001 (1536 dimensions) and generation default
+  gemini-3.5-flash-lite; one GEMINI_API_KEY. Groq/OpenAI entries below are history.
+- Last full suite: 55 passed, one optional DB test skipped. Current answer prompt v3.
+- Known open issue: test-v10.json confidently answers lateness-warning criteria with
+  general disciplinary rules. Review held attachment maqam:857:att:1 for the schedule;
+  do not claim the specific rule has already been retrieved or verified.
+- No chat memory/API integration, automatic domain routing, reranker, query rewriting
+  or link expansion yet. A formal repeatable evaluation dataset is still pending.
+- HANDOFF.md summarizes decisions and next work. Older entries describe what was
+  true at that step and may mention superseded providers or incomplete embeddings.
 
 ## Stages
 
@@ -9,13 +28,21 @@ Last updated: 2026-11-24
 | 1 | Gold question set (questions with known correct المواد) | ⏳ Not started |
 | 2 | Database schema + loading the data | ✅ Done |
 | 3 | Arabic normalization + chunking | Implemented; 3 flattened attachments require source review |
-| 4 | Indexes: Postgres full-text (Arabic) + pgvector embeddings | ⬜ |
-| 5 | Retrieval: direct lookup → query rewriting → hybrid search (RRF) → rerank → link expansion | ⬜ |
-| 6 | Answer generation with citations | ⬜ |
-| 7 | Evaluation, one component at a time | ⬜ |
+| 4 | Indexes: Postgres full-text (Arabic) + pgvector embeddings | Implemented for labour; held attachments/new domains pending |
+| 5 | Retrieval: direct lookup → query rewriting → hybrid search (RRF) → rerank → link expansion | Direct lookup + hybrid done; rewrite/rerank/expansion pending |
+| 6 | Answer generation with citations | Implemented; reliability/coverage evaluation continues |
+| 7 | Evaluation, one component at a time | Automated tests + manual examples; formal dataset pending |
 | — | Phase 2: retrieval from real case descriptions | ⬜ |
 
 ## Done
+
+### Selective clarification for calculations (2026-11-25)
+
+- Prompt arabic-evidence-v4 distinguishes complete arithmetic inputs from ambiguous
+  legal classification, missing inputs and unsupported deduction requests.
+- Instructs direct calculation using supplied facts, without invented registration
+  conditions, redundant wage confirmation or assuming basic wage is the calculation base.
+- Added Arabic wording guidance; old saved outputs are retained as baselines.
 
 ### Ambiguous employment and retirement questions (2026-11-24)
 
