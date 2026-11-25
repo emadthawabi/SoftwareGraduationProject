@@ -2,12 +2,17 @@
 
 A retrieval-augmented generation (RAG) system over Palestinian legislation. Given a question in Arabic, it finds the relevant المواد (articles) and answers only from them, with citations.
 
-- **Phase 1 (current):** retrieve the relevant legal texts for a user's question.
+- **Phase 1 (current):** retrieve legal texts and generate evidence-based Arabic answers.
 - **Phase 2:** extract facts and legal issues from real cases and retrieve the texts that apply to them.
 
 The pipeline is built first on **قانون العمل الفلسطيني رقم (7) لسنة 2000** (Palestinian Labour Law No. 7 of 2000) and its 36 related instruments. Other laws are added later as new domains, with no change to the pipeline.
 
 See [PROGRESS.md](PROGRESS.md) for the current status and decisions, and [docs/DATA_GUIDE.md](docs/DATA_GUIDE.md) for an explanation of the data.
+
+New agents: start with [AGENTS.md](AGENTS.md) and [HANDOFF.md](HANDOFF.md), then
+review all project code, migrations, tests and docs. These notes summarize work;
+they do not provide the full earlier conversation. Additional legal fields still
+need loading, chunking and embeddings: see [docs/NEW_DOMAINS.md](docs/NEW_DOMAINS.md).
 
 ## Pipeline
 
@@ -25,8 +30,8 @@ The original texts live in PostgreSQL as the source of truth. Search indexes (ch
 |---|---|
 | Language | Python 3 |
 | Database | PostgreSQL 16 + pgvector, in Docker |
-| LLM (query rewriting, answers) | OpenAI API |
-| Embeddings | OpenAI API |
+| Arabic answer generation | Gemini; default gemini-3.5-flash-lite, configurable via ANSWER_MODEL |
+| Embeddings | gemini-embedding-001, 1536 dimensions, Google GenAI API |
 
 ## Project layout
 
@@ -95,7 +100,8 @@ See [docs/CHUNKING.md](docs/CHUNKING.md) for rules, warnings and database comman
 Preview: `python -m legal_rag.chunk --domain labour --preview`.
 After migrations: `python -m legal_rag.chunk --domain labour --write`.
 Corpus reloads remove derived chunks; run the chunk command again afterward.
-Embeddings and token-limit checks are a later stage.
+Token validation, cached embedding generation and semantic/hybrid retrieval are
+implemented; see docs/EMBEDDING_STORAGE.md and docs/HYBRID_SEARCH.md.
 Migration `005_keyword_search.sql` adds separate normalized keyword text and a
 GIN full-text index. Regenerate chunks after applying it. Three flattened source
 attachments remain held for review (`embedding_ready=false`). Continuations of
@@ -118,7 +124,8 @@ text. Attachments held for review are excluded. Scores are relevance ranks, not
 confidence probabilities. Common question words are removed; partial matches are
 ranked by the number of distinct terms matched, then PostgreSQL rank. Negation
 and numbers are retained, but partial matching does not enforce every constraint.
-There is no Arabic stemming, synonym expansion or answer generation yet.
+This keyword command has no Arabic stemming, synonym expansion or answer generation.
+Separate semantic/hybrid and answer commands are implemented; see the docs.
 If Arabic letters appear disconnected or reversed in the terminal, use `--output`
 and open the UTF-8 JSON file in VS Code; source text is not reversed or reshaped.
 
@@ -159,8 +166,10 @@ Migration `006_embedding_storage.sql` adds `embedding_cache` for 1536-dimensiona
 L2-normalized vectors and `chunk_embeddings`, a view linking eligible current
 chunks to matching cache entries. Run `python -m legal_rag.migrate` to apply it.
 The cache survives corpus/chunk rebuilds. It separates provider, model, dimensions,
-task, normalization, request version and exact input hash. It is empty until an
-embedding generator is implemented. See [docs/EMBEDDING_STORAGE.md](docs/EMBEDDING_STORAGE.md).
+task, normalization, request version and exact input hash. The generator is
+`python -m legal_rag.embed --domain labour --write`; existing matching vectors are
+reused. New domains still need their own embeddings. See
+[docs/EMBEDDING_STORAGE.md](docs/EMBEDDING_STORAGE.md).
 
 Never edit a migration that has already been applied. Add a new file with the next number (e.g. `004_....sql`) and run `python -m legal_rag.migrate`.
 

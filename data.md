@@ -2,6 +2,11 @@
 
 Companion to `AGENTS.md`. Everything here is **read-only** for the RAG phase: report problems, never edit these files.
 
+This document describes the initial labour snapshot, not all future fields.
+New domains still require source validation, loading, chunks, normalized search text
+and embeddings. Follow [docs/NEW_DOMAINS.md](docs/NEW_DOMAINS.md); use
+[HANDOFF.md](HANDOFF.md) for current project state and outstanding coverage issues.
+
 ## 1. What the data is
 
 قانون العمل الفلسطيني رقم (7) لسنة 2000 (Maqam ID 1) plus its **36 related instruments** (أنظمة، لوائح، قرارات، تعليمات) — **37 التشريعات, 444 units**. Source: Maqam (maqam.najah.edu) and the official gazette PDFs, snapshot 2026-11-12.
