@@ -12,6 +12,26 @@ def row(unit, score=0):
 
 
 class HybridTests(unittest.TestCase):
+    def test_semantic_rank_one_survives_cross_method_overlap_bias(self):
+        keyword = [row(f"other-{i}") for i in range(10)]
+        semantic = [row("relevant-registration")] + keyword
+        plain = fuse_rankings(keyword, semantic, limit=5)
+        self.assertNotIn("relevant-registration", [r["unit_id"] for r in plain])
+        protected = fuse_rankings(keyword, semantic, limit=5, preserve_semantic_best=True)
+        self.assertEqual(len(protected), 5)
+        self.assertEqual(protected[:4], plain[:4])
+        self.assertEqual(protected[-1]["unit_id"], "relevant-registration")
+        self.assertEqual(protected[-1]["semantic_rank"], 1)
+        self.assertIsNone(protected[-1]["keyword_rank"])
+        self.assertAlmostEqual(protected[-1]["rrf_score"], 1 / 61)
+
+    def test_semantic_safeguard_does_not_duplicate_or_override_single_result(self):
+        rows = [row("a"), row("b")]
+        self.assertEqual(fuse_rankings(rows, rows, preserve_semantic_best=True), fuse_rankings(rows, rows))
+        self.assertEqual(fuse_rankings(rows, [], preserve_semantic_best=True), fuse_rankings(rows, []))
+        self.assertEqual(fuse_rankings(rows, [row("other")], 1, preserve_semantic_best=True),
+                         fuse_rankings(rows, [row("other")], 1))
+
     def test_overlap_scores_by_rank_not_raw_score(self):
         result = fuse_rankings([row("a", 10000), row("b", -1)], [row("b", -100), row("c", 100)])
         self.assertEqual(result[0]["unit_id"], "b")
@@ -45,9 +65,16 @@ class HybridTests(unittest.TestCase):
         client = Mock()
         result = hybrid_search("حقوق العامل", limit=1, candidates=20, client=client)
         embed.assert_called_once_with(client, "حقوق العامل")
-        search.assert_called_once_with("حقوق العامل", "labour", 20)
-        retrieve.assert_called_once_with([1], "labour", 20)
+        search.assert_called_once_with("حقوق العامل", "all", 20)
+        retrieve.assert_called_once_with([1], "all", 20)
         self.assertEqual(len(result["results"]), 1)
+
+    def test_article_numbers_in_different_documents_remain_distinct(self):
+        labour = {**row("maqam:1:art:5"), "domain": "labour", "article_no": 5}
+        company = {**row("maqam:1211:art:5"), "domain": "companies", "article_no": 5}
+        results = fuse_rankings([labour], [company])
+        self.assertEqual(len(results), 2)
+        self.assertEqual({r["domain"] for r in results}, {"labour", "companies"})
 
     @patch("legal_rag.hybrid_search.search")
     def test_invalid_options_do_not_access_services(self, search):

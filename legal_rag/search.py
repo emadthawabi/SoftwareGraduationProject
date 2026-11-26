@@ -31,7 +31,7 @@ WITH tokens AS (
 ), matches AS (
     SELECT c.chunk_id, c.unit_id, c.content AS matched_passage,
            u.text AS text, c.requires_parent_context, c.warnings,
-           l.maqam_id, l.title AS document_title, l.number AS document_number,
+           l.maqam_id, l.domain, l.title AS document_title, l.number AS document_number,
            l.year AS document_year, u.article_no, u.article_title,
            COALESCE(u.source_item_url, u.source_page_url, l.pdf_url) AS source_url,
            (SELECT count(*) FROM tokens WHERE c.search_vector @@ tokens.term_query) AS matched_terms,
@@ -45,13 +45,14 @@ WITH tokens AS (
     JOIN units u ON u.unit_id = c.unit_id
     JOIN legislation l ON l.maqam_id = u.maqam_id
     CROSS JOIN query
-    WHERE l.domain = %s AND u.searchable AND c.embedding_ready
+    WHERE l.domain = COALESCE(NULLIF(%s, 'all'), l.domain)
+      AND u.searchable AND c.embedding_ready
       AND l.superseded_by IS NULL
       AND l.jurisdiction IS DISTINCT FROM 'repealed'
       AND c.search_vector @@ query.terms
 )
 SELECT chunk_id, unit_id, matched_passage, text, requires_parent_context, warnings,
-       maqam_id, document_title, document_number, document_year,
+       maqam_id, domain, document_title, document_number, document_year,
        article_no, article_title, source_url, matched_terms, score
 FROM matches WHERE unit_rank = 1
 ORDER BY matched_terms DESC, score DESC, maqam_id, article_no NULLS LAST, unit_id
@@ -96,7 +97,8 @@ SELECT u.unit_id, u.text, u.article_no, u.article_title,
        l.year AS document_year, u.verification, u.flags AS warnings,
        COALESCE(u.source_item_url, u.source_page_url, l.pdf_url) AS source_url
 FROM units u JOIN legislation l ON l.maqam_id = u.maqam_id
-WHERE l.maqam_id = %s AND u.article_no = %s AND l.domain = %s
+WHERE l.maqam_id = %s AND u.article_no = %s
+  AND l.domain = COALESCE(NULLIF(%s, 'all'), l.domain)
   AND u.kind = 'article' AND u.searchable
   AND l.superseded_by IS NULL
   AND l.jurisdiction IS DISTINCT FROM 'repealed'

@@ -1,6 +1,6 @@
 # Progress
 
-Last updated: 2026-11-25
+Last updated: 2026-11-26
 
 ## Current state (read before historical entries)
 
@@ -12,7 +12,10 @@ Last updated: 2026-11-25
   chunking, token validation, embeddings and evaluation. See docs/NEW_DOMAINS.md.
 - Models: gemini-embedding-001 (1536 dimensions) and generation default
   gemini-3.5-flash-lite; one GEMINI_API_KEY. Groq/OpenAI entries below are history.
-- Last full suite: 55 passed, one optional DB test skipped. Current answer prompt v3.
+- Last full suite with DB checks enabled: 77 passed, none skipped. Current answer prompt v4.
+- Companies: all 346 now verified_html after reviewed extraction/context repairs.
+  No companies database loading/embedding yet; paragraph/reference extraction,
+  PDF checks and amendment completeness remain separate pending work.
 - Known open issue: test-v10.json confidently answers lateness-warning criteria with
   general disciplinary rules. Review held attachment maqam:857:att:1 for the schedule;
   do not claim the specific rule has already been retrieved or verified.
@@ -35,6 +38,103 @@ Last updated: 2026-11-25
 | — | Phase 2: retrieval from real case descriptions | ⬜ |
 
 ## Done
+
+### Repository and database audit (2026-11-26)
+
+- All application modules parse/import; dependency check passes and required
+  configuration is present without exposing values. All six migrations applied.
+- Found semantic_search.py restored to an older single-domain query, which returned
+  no vector rows for all. Restored combined filtering/domain metadata and added an
+  opt-in regression checking actual all-domain and restricted-domain retrieval.
+- Full suite including live DB checks: 77 passed. No Gemini calls in this audit.
+- Both corpus text maps exactly match DB: labour 37 documents/444 units and companies
+  1 document/346 units. Chunks: labour 430 (427 ready), companies 385 (385 ready).
+  Current-profile vector links cover all 812 ready chunks; zero chunk hash mismatches.
+- Existing three labour attachment holds and previously documented source/evaluation
+  limitations remain. Core command-line pipeline works; not a completed public app.
+
+### Combined legal-domain retrieval (2026-11-26)
+
+- Answer/hybrid commands default to all loaded domains; both keyword/vector SQL
+  support all while preserving specific-domain filtering. Sources include domains.
+- Simple bare article-text requests check document ambiguity before generation;
+  multiple documents prompt clarification, unique matches return original text.
+  Complex document/paragraph references still use existing hybrid behavior.
+- Live all-domain keyword/vector tests find companies article 65 and labour
+  maternity sources. Bare article 5 produces clarification across both domains.
+- Full suite: 75 passed, one optional DB test skipped. No re-embedding/DB changes.
+
+### Company registration retrieval recall (2026-11-25)
+
+- Read-only diagnosis confirms 385 companies chunks linked to cached vectors.
+  LLC article 65 ranked semantic #1 but keyword #40; RRF's overlap preference
+  excluded it from the five final results despite correct embedding coverage.
+- Multi-result hybrid retrieval now retains semantic #1 if RRF would drop it,
+  replacing the final slot without changing raw scores or article-specific rules.
+  Single-result requests retain pure RRF behavior. No re-embedding or DB writes.
+- Added regression tests for overlap bias, duplicate avoidance and limit behavior.
+  Full automated suite: 71 passed, one optional DB test skipped.
+- Saved hybrid-company-llc-improved.json from the live ranking diagnosis; article 65
+  is retained. Live answer generation exhausted retries with provider 503, so no
+  improved generated-answer claim is made. Original answer outputs preserved.
+
+### Companies oversized chunks resolved (2026-11-25)
+
+- Paragraph extraction v2 recognizes bare and duplicate numeric markers without
+  changing original text; 264 numbered articles + one definitions article, 973 entries,
+  81 plain articles, no remaining paragraph-sequence holds.
+- Company-specific nested chunking repeats article/parent introductions and groups
+  child items safely; oversized atomic items would remain held. Contextual excerpts
+  require parent text. Labour nested-chunk behavior remains unchanged.
+- Corpus preview: 385 chunks, all preparation-ready, no oversized holds. Model-token
+  checks still required before embeddings. Stored DB still has the prior 376 chunks
+  until companies source metadata is reloaded and chunks regenerated.
+- Full suite: 69 passed, one optional DB test skipped. No embedding API calls.
+
+### Companies paragraph metadata (2026-11-25)
+
+- Added legal_rag.paragraphs with preview/write, backups and report. Extracted 927
+  top-level entries in 256 numbered articles and one definition article; 81 plain
+  articles need no invented structure. Eight ambiguous numbering sequences flagged.
+- Original text/hash/verification unchanged. Introductory wording recorded as lead_in;
+  nested letter/parenthesized lists remain within their top-level numbered parent.
+- Chunker alignment now supports leading-dot numeric markers such as .1 without
+  modifying source. Five new tests check preservation, ambiguity and nested context.
+- Corpus chunk preview: 376 chunks, 369 preparation-ready, seven oversized holds.
+  No database writes or embedding calls. Full suite: 65 passed, one skipped.
+
+### Companies review issues resolved (2026-11-25)
+
+- Applied reviewed repairs to 19 records with original backup and before/after audit:
+  16 chapter corrections, title boundary in 66, body contamination in 226/346.
+- Explicit source-artifact exception omits only article 65's exact trailing duplicate
+  heading for 66; its legal text is unchanged. Individual Maqam item also shows it.
+- Re-ran full HTML comparison: 346 passed, 0 held. No DB changes or embeddings run.
+
+### Companies source verification (2026-11-25)
+
+- Downloaded and preserved Maqam's HTML snapshot; independent structural dt/dd
+  comparison checks all 346 articles against stored text/title/headings/URLs.
+- Marked 326 passing records verified_html, retaining 20 mismatches as unverified.
+  Held: 65,66,226,227,228,321-326,338-346. Reports and separate companies CSV saved
+  under data/verification/companies; original legal text unchanged and backed up.
+- Detected footer contamination in 346, following-heading contamination in 226,
+  article-label errors in 65/66, and incorrect chapter context in other held records.
+- Scope is HTML fidelity, not PDF agreement, amendment coverage or legal currency.
+  Paragraph/reference extraction still pending. No DB load or embedding generation.
+- All loader mappings/checks pass with 326 searchable source records. Full suite:
+  60 passed, one opt-in database test skipped. Added BeautifulSoup dependency.
+
+### Companies corpus schema preparation (2026-11-25)
+
+- New companies corpus: one document (Maqam 1211), 346 consecutive article IDs,
+  no overlap with labour document IDs. Added loader-required metadata with a
+  reproducible prepare_companies command and original corpus backups.
+- Preserved text and existing source fields; missing verification remains unverified.
+  No raw HTML supplied: document hash/raw snapshot remain null. Unit hashes identify
+  stored text only. Paragraph/reference structures still need extraction/review.
+- Currently 0 companies articles are searchable; no DB load or embeddings run.
+- Two preparation tests pass, including exact text preservation and idempotence.
 
 ### Selective clarification for calculations (2026-11-25)
 

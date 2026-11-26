@@ -1,5 +1,11 @@
 # Adding another legal field
 
+Companies-specific preparation is available as `python -m legal_rag.paragraphs`
+(preview) or `python -m legal_rag.paragraphs --write`. It preserves original text
+and extracts conservative numbered/definition boundaries. Check its saved report
+under data/verification/companies; nonconsecutive numbering is left for review.
+It is scoped to companies; do not run it as a generic normalizer for other domains.
+
 Labour embeddings are available; future fields still require their own preparation
 and embedding generation. These are instructions, not a statement that new source
 files have already been supplied or verified.

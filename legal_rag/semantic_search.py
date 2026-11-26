@@ -41,7 +41,7 @@ def retrieve(vector, domain="labour", limit=5):
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute("""
                 WITH ranked AS (
-                    SELECT c.chunk_id, c.unit_id, c.content AS matched_passage,
+                    SELECT c.chunk_id, c.unit_id, e.domain, c.content AS matched_passage,
                            u.text AS full_article, u.article_no, l.title AS document_title,
                            c.requires_parent_context, c.warnings,
                            COALESCE(u.source_item_url, u.source_page_url, l.pdf_url) AS source_url,
@@ -52,11 +52,12 @@ def retrieve(vector, domain="labour", limit=5):
                     JOIN chunks c ON c.chunk_id = e.chunk_id
                     JOIN units u ON u.unit_id = c.unit_id
                     JOIN legislation l ON l.maqam_id = u.maqam_id
-                    WHERE e.domain = %s AND e.provider = %s AND e.model = %s
+                    WHERE e.domain = COALESCE(NULLIF(%s, 'all'), e.domain)
+                      AND e.provider = %s AND e.model = %s
                       AND e.dimensions = %s AND e.task_type = %s
                       AND e.normalization = %s AND e.request_version = %s
                 )
-                SELECT chunk_id, unit_id, matched_passage, full_article, article_no,
+                SELECT chunk_id, unit_id, domain, matched_passage, full_article, article_no,
                        document_title, requires_parent_context, warnings, source_url, similarity
                 FROM ranked WHERE unit_rank = 1
                 ORDER BY similarity DESC, chunk_id LIMIT %s

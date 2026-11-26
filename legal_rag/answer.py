@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import random
+import re
 import time
 from pathlib import Path
 
@@ -11,6 +12,8 @@ from google import genai
 from google.genai import types
 
 from legal_rag.hybrid_search import hybrid_search
+from legal_rag.normalize import normalize_search_text
+from legal_rag.search import lookup_article
 
 DEFAULT_MODEL = "gemini-3.5-flash-lite"
 PROMPT_VERSION = "arabic-evidence-v4"
@@ -98,7 +101,7 @@ def prepare_sources(results):
     for row in results:
         if row.get("full_article", "").strip():
             sources[row["unit_id"]] = {
-                "unit_id": row["unit_id"], "article_no": row.get("article_no"),
+                "unit_id": row["unit_id"], "domain": row.get("domain"), "article_no": row.get("article_no"),
                 "document_title": row.get("document_title"),
                 "source_url": row.get("source_url"), "text": row["full_article"],
             }
@@ -185,19 +188,65 @@ def generate_answer(question, results, *, key=None):
             "sources": [sources[s] for s in used]}
 
 
+def direct_article_request(question, domain):
+    """Resolve simple numbered-text requests, asking when multiple laws match.
+
+    Other legal questions continue through hybrid search. An article number alone
+    is never used to choose between documents from the requested search scope.
+    """
+    match = re.fullmatch(r"(?:اعطني|اعرض|اريد|هات)\s+(?:نص\s+)?المادة\s+(?:رقم\s+)?([0-9]+)[؟?.!\s]*",
+                         normalize_search_text(question))
+    if not match:
+        return None
+    from psycopg.rows import dict_row
+
+    from legal_rag.db import connect
+
+    article = int(match[1])
+    with connect() as conn:
+        conn.execute("SET TRANSACTION READ ONLY")
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute("""SELECT l.maqam_id, l.title AS document_title, l.domain
+                FROM units u JOIN legislation l ON l.maqam_id=u.maqam_id
+                WHERE u.kind='article' AND u.article_no=%s AND u.searchable
+                  AND l.domain=COALESCE(NULLIF(%s, 'all'), l.domain)
+                  AND l.superseded_by IS NULL AND l.jurisdiction IS DISTINCT FROM 'repealed'
+                ORDER BY l.maqam_id""", (article, domain))
+            choices = list(cur.fetchall())
+        if len(choices) == 1:
+            rows = lookup_article(choices[0]["maqam_id"], article, domain, connection=conn)
+        else:
+            rows = []
+    if len(choices) != 1:
+        message = (f"المادة {article} واردة في أكثر من تشريع. ما اسم القانون أو التشريع الذي تقصده؟"
+                   if choices else f"لم أجد مادة برقم {article} ضمن النصوص المتاحة في نطاق البحث. ما اسم التشريع المقصود؟")
+        return {"question": question, "model": None, "route": "article_clarification", "domain": domain,
+                "status": "insufficient", "claims": [], "limitation": message, "answer": message,
+                "sources": [], "clarification_options": choices}
+    source = rows[0]
+    claim = {"text": source["text"], "source_ids": [source["unit_id"]]}
+    return {"question": question, "model": None, "route": "direct_article", "domain": domain,
+            "status": "answered", "claims": [claim], "limitation": "", "answer": source["text"],
+            "sources": [{"unit_id": source["unit_id"], "domain": choices[0]["domain"],
+                         "article_no": article, "document_title": source["document_title"],
+                         "source_url": source["source_url"], "text": source["text"]}]}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("question")
-    parser.add_argument("--domain", default="labour")
+    parser.add_argument("--domain", default="all", help="all (default), labour, companies, or another loaded domain")
     parser.add_argument("--limit", type=int, default=5)
     parser.add_argument("--output", type=Path, default=Path("answer-results.json"))
     args = parser.parse_args()
     try:
-        if not os.getenv("GEMINI_API_KEY"):
-            raise ValueError("Set GEMINI_API_KEY in .env first. Use your Google AI Studio key.")
-        retrieval = hybrid_search(args.question, args.domain, args.limit, max(20, args.limit))
-        result = generate_answer(args.question, retrieval["results"])
-        result["retrieval"] = retrieval
+        result = direct_article_request(args.question, args.domain)
+        if result is None:
+            if not os.getenv("GEMINI_API_KEY"):
+                raise ValueError("Set GEMINI_API_KEY in .env first. Use your Google AI Studio key.")
+            retrieval = hybrid_search(args.question, args.domain, args.limit, max(20, args.limit))
+            result = generate_answer(args.question, retrieval["results"])
+            result["retrieval"] = retrieval
         args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         print(f"Saved Arabic answer and citations to {args.output}. Open it in VS Code.")
     except (ValueError, RuntimeError) as exc:
