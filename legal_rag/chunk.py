@@ -50,7 +50,8 @@ def segments(unit):
         # Include the paragraph/definition label with its own content.
         line_start = text.rfind("\n", cursor, pos) + 1
         before = text[line_start:pos].strip()
-        if line_start >= cursor and (not before or
+        reverse_number = bool(label and re.fullmatch(r"\.\s*" + re.escape(label), before))
+        if line_start >= cursor and (not before or reverse_number or
                 (label and before.startswith(label) and
                  all(c in " .:-–—)٠١٢٣٤٥٦٧٨٩0123456789(\t" for c in before[len(label):]))):
             start = line_start
@@ -94,6 +95,39 @@ def split_long_span(text, limit):
     return pieces
 
 
+def nested_passages(span, outer_prefix, limit, level=0):
+    """Split only at child-list boundaries; repeat governing introductions verbatim.
+
+    Lettered children are split first, then their parenthesized numeric subitems.
+    If an atomic item plus its context remains too long, leave it held for review.
+    """
+    if len(outer_prefix + span) <= limit:
+        return [outer_prefix + span]
+    patterns = [r"(?m)^[ \t]*[أابتثجحخدذرزسشصضطظعغفقكلمنهوي][.\-)]",
+                r"(?m)^[ \t]*[0-9٠-٩]+\)"]
+    if level >= len(patterns):
+        return [outer_prefix + span]
+    starts = [m.start() for m in re.finditer(patterns[level], span)]
+    if not starts:
+        return nested_passages(span, outer_prefix, limit, level + 1)
+    intro = span[:starts[0]]
+    context = outer_prefix + intro
+    parts = [span[a:b] for a, b in zip(starts, starts[1:] + [len(span)])]
+    assert intro + "".join(parts) == span
+    result, current = [], ""
+    for part in parts:
+        if current and len(context + current + part) > limit:
+            result.append(context + current)
+            current = ""
+        if len(context + part) > limit:
+            result.extend(nested_passages(part, context, limit, level + 1))
+        else:
+            current += part
+    if current:
+        result.append(context + current)
+    return result
+
+
 def build_chunks(unit, legislation, domain, max_chars=1500):
     if max_chars <= 0:
         raise ValueError("max_chars must be positive")
@@ -120,6 +154,12 @@ def build_chunks(unit, legislation, domain, max_chars=1500):
                         groups.append((prefix + current, current_labels, "paragraph_group", False))
                         current, current_labels = "", []
                     paragraph = (unit.get("paragraphs") or [])[labels.index(label)]
+                    if domain == "companies" and paragraph.get("items"):
+                        # Keep each child list under the complete parent introduction.
+                        # These are contextual excerpts; retrieval returns full parent text.
+                        for passage in nested_passages(span, prefix, max_chars):
+                            groups.append((passage, [label], "paragraph_group", True))
+                        continue
                     # Explicit nested structure wins over the size heuristic.
                     pieces = ([span] if paragraph.get("items") else
                               split_long_span(span, max(1, max_chars - len(prefix))))
@@ -150,7 +190,7 @@ def build_chunks(unit, legislation, domain, max_chars=1500):
             "requires_parent_context": continuation,
             "embedding_ready": unit["kind"] != "attachment" and len(content) <= max_chars,
             "input_hash": hashlib.sha256(embedding_input.encode("utf-8")).hexdigest(),
-            "chunker_version": f"{VERSION}:max_chars={max_chars}",
+            "chunker_version": f"{'companies-nested-v3' if domain == 'companies' else VERSION}:max_chars={max_chars}",
             "warnings": sorted(
                 {str(w) for w in warnings}
                 | ({"oversized_passage"} if len(content) > max_chars else set())

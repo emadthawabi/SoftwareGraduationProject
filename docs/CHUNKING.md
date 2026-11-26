@@ -147,3 +147,18 @@ SELECT count(*) AS chunks, count(DISTINCT unit_id) AS represented_units FROM chu
 SELECT chunk_id, paragraph_labels, embedding_input, warnings
 FROM chunks ORDER BY unit_id, chunk_index;
 ```
+# Companies nested-list review (2026-11-25)
+
+Company paragraph extraction v2 recognizes `1.`, `.1`, `1 .1` and bare `1` markers
+only when the resulting top-level sequence is consecutive. Source wording is not
+normalized or repaired by this extraction. The updated company snapshot has 973
+top-level entries across 265 structured articles.
+
+For oversized company paragraphs, child letter lists are grouped under the exact
+parent introduction. If necessary, parenthesized numeric grandchildren are grouped
+under both governing introductions. These excerpts repeat context and are marked
+requires_parent_context; retrieval still supplies the full source unit. Atomic items
+that cannot fit remain held rather than being truncated. Labour behavior is retained.
+
+Current corpus preview: 385 company chunks, no size holds. Token checks are separate.
+Reload company source metadata and regenerate chunks before running token validation.

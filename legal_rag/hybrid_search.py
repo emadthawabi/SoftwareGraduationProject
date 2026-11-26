@@ -9,7 +9,7 @@ from legal_rag.search import query_terms, search
 from legal_rag.semantic_search import embed_question, retrieve
 
 
-def fuse_rankings(keyword_results, semantic_results, limit=5, k=60):
+def fuse_rankings(keyword_results, semantic_results, limit=5, k=60, *, preserve_semantic_best=False):
     """Equal-weight RRF per source unit; raw scores never determine fusion.
 
     Keep each retriever's excerpt, since they may select different chunks of one
@@ -28,7 +28,7 @@ def fuse_rankings(keyword_results, semantic_results, limit=5, k=60):
             rank = len(seen)
             if unit_id not in combined:
                 combined[unit_id] = {
-                    "unit_id": unit_id, "article_no": row.get("article_no"),
+                    "unit_id": unit_id, "domain": row.get("domain"), "article_no": row.get("article_no"),
                     "document_title": row.get("document_title"),
                     "source_url": row.get("source_url"),
                     "full_article": row.get("full_article", row.get("text")),
@@ -44,10 +44,19 @@ def fuse_rankings(keyword_results, semantic_results, limit=5, k=60):
                 "warnings": row.get("warnings", []),
                 "original_score": row.get("score") if method == "keyword" else row.get("similarity"),
             }
-    return sorted(combined.values(), key=lambda row: (-row["rrf_score"], row["unit_id"]))[:limit]
+    ranked = sorted(combined.values(), key=lambda row: (-row["rrf_score"], row["unit_id"]))
+    selected = ranked[:limit]
+    # RRF can discard semantic rank 1 solely because it has no keyword overlap.
+    # Reserve one slot in multi-result retrieval, leaving scores and source ranks
+    # unchanged. Do not force an extra result or use article-specific exceptions.
+    if preserve_semantic_best and limit > 1 and semantic_results:
+        best_id = semantic_results[0]["unit_id"]
+        if all(row["unit_id"] != best_id for row in selected):
+            selected = selected[:limit - 1] + [combined[best_id]]
+    return selected
 
 
-def hybrid_search(question, domain="labour", limit=5, candidates=20, *, client=None):
+def hybrid_search(question, domain="all", limit=5, candidates=20, *, client=None):
     """Embed once, retrieve a wider pool per method, then fuse by unit_id.
 
     Errors propagate: an unavailable semantic service is never silently presented
@@ -74,16 +83,17 @@ def hybrid_search(question, domain="labour", limit=5, candidates=20, *, client=N
     semantic_results = retrieve(vector, domain, candidates)
     return {
         "question": question, "domain": domain, "method": "rrf", "rrf_k": 60,
+        "preserve_semantic_best": limit > 1,
         "candidates_per_method": candidates,
         "keyword_count": len(keyword_results), "semantic_count": len(semantic_results),
-        "results": fuse_rankings(keyword_results, semantic_results, limit),
+        "results": fuse_rankings(keyword_results, semantic_results, limit, preserve_semantic_best=True),
     }
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("question")
-    parser.add_argument("--domain", default="labour")
+    parser.add_argument("--domain", default="all", help="all (default), labour, companies, or another loaded domain")
     parser.add_argument("--limit", type=int, default=5)
     parser.add_argument("--candidates", type=int, default=20)
     parser.add_argument("--output", type=Path, default=Path("hybrid-results.json"))

@@ -1,5 +1,6 @@
 """Question embedding safety and retrieval query checks without API calls."""
 
+import os
 import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -46,6 +47,30 @@ class SemanticSearchTests(unittest.TestCase):
         self.assertIn("<=>", query)
         self.assertIn("unit_rank = 1", query)
         self.assertEqual(params[3:9], PROFILE)
+
+    @unittest.skipUnless(os.getenv("LEGAL_RAG_TEST_DATABASE") == "1",
+                         "Requires opt-in live PostgreSQL")
+    def test_all_scope_reads_existing_vectors_and_specific_scope_stays_filtered(self):
+        import json
+
+        from legal_rag.db import connect
+        from legal_rag.embed import PROFILE_FILTER
+
+        with connect() as conn:
+            conn.execute("SET TRANSACTION READ ONLY")
+            samples = conn.execute("SELECT DISTINCT ON (domain) domain, embedding::text "
+                                   "FROM chunk_embeddings WHERE " + PROFILE_FILTER +
+                                   " ORDER BY domain, chunk_id", PROFILE).fetchall()
+        if not samples:
+            self.skipTest("No current-profile vectors available")
+        for domain, encoded in samples:
+            vector = json.loads(encoded)
+            all_rows = retrieve(vector, "all", 5)
+            self.assertTrue(all_rows, "all must not be interpreted as a literal domain")
+            self.assertTrue(any(row["domain"] == domain for row in all_rows))
+            specific_rows = retrieve(vector, domain, 5)
+            self.assertTrue(specific_rows)
+            self.assertTrue(all(row["domain"] == domain for row in specific_rows))
 
 
 if __name__ == "__main__":

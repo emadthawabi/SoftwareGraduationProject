@@ -1,5 +1,11 @@
 # Hybrid search
 
+Default scope is now `all`: keyword and vector candidates are ranked jointly across
+all loaded domains, including labour and companies. `--domain labour` or
+`--domain companies` still restricts results. Other keyword/semantic CLIs retain
+their previous default but accept `--domain all`. Both retrieval paths preserve
+eligibility/model filters, and fused sources include the actual domain.
+
 Start PostgreSQL using your existing project setup, then run from the project root:
 
 ```powershell
@@ -15,6 +21,14 @@ the question to a Gemini query embedding once and reuses stored document vectors
 Each method contributes `1 / (60 + rank)` per article, with equal weight. An article
 found by both methods receives both contributions. Duplicates within a method count
 once; ties are resolved by unit_id. Raw retrieval scores remain for inspection only.
+
+For output limits above one, the top semantic candidate is retained if ordinary RRF
+would discard it: it replaces the final selected result. This avoids losing a strong
+semantic-only match solely because generic keyword matches appear in both lists.
+RRF scores and original ranks remain unchanged; `preserve_semantic_best` records
+this selection policy in the report. Single-result requests keep plain RRF behavior.
+This is a recall safeguard, not a semantic correctness check or trained reranker;
+the best vector match can still be irrelevant for an unsupported question.
 
 Adjust pool/output sizes with `--candidates 30 --limit 5` (maximum 100 candidates,
 and output limit must not exceed the pool size). An empty keyword result is allowed;

@@ -1,5 +1,19 @@
 # Arabic answer generation
 
+Answer and hybrid-search commands now default to `--domain all`: both labour and
+companies, plus any future loaded domains. Use `--domain labour` or
+`--domain companies` to restrict the scope. Source records include their domain;
+article identity always includes its document ID. Existing embeddings are reused.
+
+Simple requests such as `اعطني نص المادة رقم 5` use a direct article route.
+If multiple eligible documents in the selected scope contain that number, output
+has route=article_clarification, status=insufficient and clarification_options with
+document titles/IDs/domains. It does not call Gemini. A unique match returns original
+text directly (route=direct_article). This parser covers only simple whole-article
+requests; it is not general conversational reference resolution or paragraph routing.
+For an explicitly selected document use the existing exact command:
+`python -m legal_rag.search --document 1211 --article 5 --domain all`.
+
 1. Use the existing `GEMINI_API_KEY` in .env for both embedding and generation.
 2. Optionally add `ANSWER_MODEL=gemini-3.5-flash-lite` (the code default).
    Keep database/embedding settings. GROQ_API_KEY is unused and may be removed.
